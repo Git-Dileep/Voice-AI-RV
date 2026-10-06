@@ -1,0 +1,26 @@
+- name: "update_record"
+  description: "Updates a database record with new values."
+  risk_level: "confirm"
+  handler_path: "/api/actions/update_record"
+  parameters:
+    type: object
+    properties:
+      record_id:
+        type: string
+        description: "The ID of the record to update"
+      value:
+        type: string
+        description: "The new value to set"
+    required: ["record_id", "value"]
+
+- name: "get_weather"
+  description: "Gets the current weather for a location."
+  risk_level: "safe"
+  handler_path: "/api/actions/get_weather"
+  parameters:
+    type: object
+    properties:
+      location:
+        type: string
+        description: "The city or location"
+    required: ["location"]
