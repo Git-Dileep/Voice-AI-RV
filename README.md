@@ -1,97 +1,113 @@
-Voice AI Hackathon: Baseline Architecture
+# Voice AI Hackathon: Baseline Architecture
 
-Welcome to the baseline repository. Our primary objective is to construct a domain-agnostic voice-agent core prior to the hackathon event. When the problem statement is released, the team will only modify the persona, knowledge base, and tools, ensuring the core infrastructure remains untouched.
+[![Build Status](https://img.shields.io/badge/build-passing-success.svg)](#)
+[![Latency Target](https://img.shields.io/badge/latency-under_1.5s-blue.svg)](#)
+[![Architecture](https://img.shields.io/badge/architecture-event--driven-orange.svg)](#)
 
-Design Principles
+> **Objective:** Construct a domain-agnostic, low-latency voice-agent core prior to the hackathon event. Upon release of the problem statement, the team will modify only the persona, knowledge base, and tools. The core infrastructure remains strictly untouched.
 
-Voice-First Design: The demonstration must highlight use cases that are significantly enhanced by or rely entirely on speech (e.g., hands-busy, eyes-busy, low-literacy, or multilingual users).
+## Architecture Overview
 
-Low Latency Streaming: Speech-to-text (STT) partials, LLM tokens, and text-to-speech (TTS) chunks must overlap. The target metric is under 1.5 seconds from the end of user speech to the first audio output.
+Speech enters at the top and reply audio leaves at the bottom. The orchestrator retrieves knowledge, feeds the telemetry dashboard, and executes tools through the integration layer.
 
-Resilient Infrastructure: Every component must have an offline, local equivalent to mitigate the risk of venue network failures.
+```text
+[ Mic + VAD ] ---> [ Streaming STT ] ---> [ Orchestrator ] ---> [ Streaming TTS ] ---> [ Speaker ]
+                                                |
+                                                +---> [ Knowledge Base (RAG) ]
+                                                +---> [ Live Dashboard ]
+                                                +---> [ Tool Executor ] ---> [ Integrations ]
+```
 
-Explicit Execution: The LLM manages conversation while tools handle execution. All API, database, and application actions are explicit, validated function calls.
+## Core Design Principles
 
-System Transparency: A live dashboard will display transcripts, detected language, tool calls, and per-stage latency to demonstrate system intelligence to the jury.
+* **Voice-First Paradigm:** Demonstrations must showcase capabilities that are slow or impossible without speech (e.g., hands-busy, eyes-busy, low-literacy users, or driving live software systems).
+* **Aggressive Streaming:** Speech-to-text (STT) partials, LLM tokens, and text-to-speech (TTS) chunks must overlap. The baseline target is under 1.5 seconds from the end of user speech to the first audio output.
+* **Resilient Infrastructure:** The system is cloud-first but local-twin ready. Every component has an offline fallback (e.g., Whisper, Piper, local LLM) to completely mitigate venue Wi-Fi risks.
+* **Explicit Execution:** The LLM manages conversation while tools handle execution. All database and application actions operate as explicit, validated function calls.
+* **System Transparency:** A live dashboard exposes system telemetry (transcripts, language identification, tool calls, and per-stage latency) to make the backend intelligence visible to the jury.
+* **Failsafe Operations:** Low confidence triggers a clarifying prompt. High-risk actions require spoken confirmation prior to execution.
 
-Failsafe Operations: The system must gracefully ask for clarification upon low confidence and demand spoken confirmation for any high-risk execution actions.
+## Team Matrix & Responsibilities
 
-Project Structure and Work Split
+Work is strictly partitioned by architectural layer to maximize parallel development.
 
-To maximize parallel development, work is divided by architectural layer rather than feature.
+| Owner | Domain | Key Deliverables |
+| :--- | :--- | :--- |
+| **Person A** | **Voice Core** | Audio I/O, primary/fallback `VoiceProvider` interface, VAD/barge-in logic, language ID, and per-stage latency timers. |
+| **Person B** | **Agent Brain** | Orchestrator loop, prompt safety guardrails, session memory, local RAG integration, and the centralized `tools.yaml`. |
+| **Person C** | **Integrations** | Action API backend, mock services, live web dashboard, environment panel, and the one-command launch script. |
 
-Person A: Voice Core (/core)
+## Immutable Data Contracts
 
-Scope: Audio input/output, provider abstraction, latency optimization, and offline fallbacks.
+To prevent integration blockers, the following contracts are frozen from Day 1 and must be strictly adhered to by all team members:
 
-interfaces.py: Defines the VoiceProvider contract.
+### 1. The Provider Interface (`core/interfaces.py`)
+```python
+def start(self): ...
+def on_partial(self, text: str): ...
+def on_final(self, text: str, lang: str, confidence: float): ...
+def on_tool_call(self, name: str, args: dict): ...
+def speak(self, text: str): ...
+def interrupt(self): ...
+```
 
-vad.py: Manages voice activity detection, barge-in, and noise gating.
+### 2. Tool Definitions (`brain/tools.yaml`)
+This file acts as the single source of truth, dynamically exported to every provider's required format.
+```yaml
+- name: "update_record"
+  description: "Updates a database record."
+  risk_level: "confirm" # Options: 'safe' or 'confirm'
+  handler_path: "/api/actions/update_record"
+  parameters: ...
+```
 
-stt.py / tts.py: Streaming implementations for primary (ElevenLabs/Gemini) and fallback (Whisper/Piper) providers.
+### 3. Action API Payload
+All tool handlers route through a standardized endpoint.
+**Endpoint:** `POST /api/actions/<tool>`
+**Expected Response:**
+```json
+{
+  "ok": true,
+  "result": { "status": "updated" },
+  "error": null
+}
+```
 
-Person B: Agent Brain (/brain)
+### 4. Dashboard Event Stream
+Pushed via WebSocket for real-time telemetry rendering.
+```json
+{
+  "ts": 1696500000.123,
+  "stage": "stt_partial",
+  "data": { "text": "turn on the" }
+}
+```
 
-Scope: Prompt engineering, orchestrator logic, knowledge retrieval, and safety protocols.
+## Quickstart & Operations
 
-orchestrator.py: Manages the LLM, tool calling, and session memory.
-
-tools.yaml: The single source of truth for all tools, formatted for export to provider schemas.
-
-knowledge/: A swappable directory for local Retrieval-Augmented Generation (RAG) using Chroma or FAISS.
-
-Person C: Integrations and Demo (/integrations & /dashboard)
-
-Scope: Action API, live user interface, and overall packaging.
-
-action_api.py: FastAPI backend handling tool execution and state changes.
-
-dashboard/: Web client hosting microphone capture, the live event stream UI, and the simulated environment panel.
-
-Core Technical Contracts
-
-To prevent integration blockers, the following interfaces are strictly defined and must not be altered:
-
-VoiceProvider Interface (core/interfaces.py):
-Implementations must provide: start(), on_partial(text), on_final(text, lang, conf), on_tool_call(name, args), speak(text), and interrupt().
-
-Tool Definitions (brain/tools.yaml):
-Each entry must specify: name, description, JSON-schema arguments, risk level (safe/confirm), and handler path.
-
-Action API (integrations/action_api.py):
-All tool handlers must call POST /api/actions/<tool> and return a standardized JSON response: {ok: bool, result: any, error: string}.
-
-Dashboard Stream:
-The WebSocket connection must push JSON data formatted as {ts: timestamp, stage: string, data: object} for every pipeline event.
-
-Getting Started
-
-Install Dependencies:
-Ensure your .env file contains the required API credentials (e.g., ElevenLabs, Gemini).
-
+**1. Environment Setup**
+Ensure `.env` is populated with the required API credentials (e.g., ElevenLabs, Gemini).
+```bash
 pip install -r requirements.txt
+```
 
-
-Run the Benchmark:
-Execute the day-one benchmark script to evaluate primary versus backup providers against the standardized 20-utterance test set.
-
+**2. Evaluate Providers**
+Run the benchmark script against the standardized 20-utterance test set to compare primary versus local fallback latency and accuracy.
+```bash
 python tests/benchmark.py
+```
 
-
-Launch the Stack:
-This script initializes the FastAPI backend, loads the orchestrator, and serves the frontend dashboard.
-
+**3. Launch the Stack**
+This command initializes the FastAPI backend, loads the orchestrator loop, and serves the frontend dashboard.
+```bash
 ./run.sh
+```
 
+## Pivot Playbook
 
-Pivot Playbook
+When the hackathon problem statement is released, the core architecture remains untouched. Execute these four steps to adapt:
 
-Upon receiving the hackathon problem statement, the core architecture remains frozen. The team will exclusively update the following four components:
-
-System Prompt and Persona
-
-Knowledge Base Documents (Add relevant domain files to /brain/knowledge)
-
-tools.yaml and Associated Handlers
-
-Target Language Configurations
+- [ ] **Define the Persona:** Update system prompts and assign the appropriate agent voice.
+- [ ] **Swap the Knowledge Base:** Move domain-specific PDFs or text files into `/brain/knowledge`.
+- [ ] **Configure Tools:** Update `tools.yaml` and wire the corresponding API endpoints in `integrations/action_api.py`.
+- [ ] **Set Language Focus:** Configure STT/TTS language parameters based on the target demographic of the problem statement.
