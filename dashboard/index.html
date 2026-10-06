@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice AI Dashboard</title>
+</head>
+
+<body>
+
+    <h1>Voice AI Dashboard</h1>
+
+    <!-- AI Assistant -->
+    <h2>AI Assistant</h2>
+
+    <input
+        type="text"
+        id="userInput"
+        placeholder="Say something..."
+    >
+
+    <button onclick="sendMessage()">Send</button>
+
+    <p id="assistantResponse"></p>
+
+    <hr>
+
+    <!-- Weather -->
+    <h2>Get Weather</h2>
+
+    <input
+        type="text"
+        id="location"
+        placeholder="Enter location"
+    >
+
+    <button onclick="getWeather()">Get Weather</button>
+
+    <p id="weatherResult"></p>
+
+    <hr>
+
+    <!-- Update Record -->
+    <h2>Update Record</h2>
+
+    <input
+        type="text"
+        id="recordId"
+        placeholder="Record ID"
+    >
+
+    <input
+        type="text"
+        id="recordValue"
+        placeholder="New value"
+    >
+
+    <button onclick="updateRecord()">Update Record</button>
+
+    <p id="updateResult"></p>
+
+    <script src="app.js"></script>
+
+</body>
+</html>
