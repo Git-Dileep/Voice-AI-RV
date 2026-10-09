@@ -1,0 +1,8 @@
+openai
+elevenlabs
+sounddevice
+numpy
+python-dotenv
+pyyaml
+requests
+faster-whisper
